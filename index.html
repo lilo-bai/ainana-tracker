@@ -171,12 +171,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.25);
       padding: 10px;
       text-align: center;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.5);
       line-height: 1.4;
     }
     .card-info {
@@ -689,11 +690,11 @@
           <div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>`;
       }
       // 无图片：显示默认图 + 文字叠加
-      const noteText = (item.note && item.note !== '/') ? item.note : '暂无图片^_^';
+      const overlayText = item.imgText || '暂无图片^ ^';
       return `
         <div class="card-img-wrap">
           <img src="images/no-image.png" alt="暂无图片" loading="lazy">
-          <div class="card-img-overlay">${noteText}</div>
+          <div class="card-img-overlay">${overlayText}</div>
         </div>`;
     }
 
@@ -773,11 +774,11 @@
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
           <div class="detail-img-placeholder" style="background:${gradient};display:none">${short}</div>`;
       }
-      const noteText = (item.note && item.note !== '/') ? item.note : '暂无图片^_^';
+      const overlayText = item.imgText || '暂无图片^ ^';
       return `
         <div class="card-img-wrap" style="border-radius:12px;margin-bottom:16px;">
           <img src="images/no-image.png" alt="暂无图片" style="border-radius:12px;">
-          <div class="card-img-overlay" style="border-radius:12px;background:rgba(255,255,255,0.8);">${noteText}</div>
+          <div class="card-img-overlay" style="border-radius:12px;background:rgba(0,0,0,0.25);">${overlayText}</div>
         </div>`;
     }
     function openDetail(id) {
