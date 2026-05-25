@@ -152,6 +152,33 @@
       color: #fff;
       text-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
+    /* 无图片时的默认图容器 */
+    .card-img-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1/1;
+      overflow: hidden;
+    }
+    .card-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .card-img-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.75);
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.4;
+    }
     .card-info {
       padding: 12px;
     }
@@ -208,6 +235,24 @@
     .page-btn:disabled {
       opacity: 0.4; cursor: not-allowed;
     }
+    .page-jump-wrap {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.7);
+      padding: 4px 8px;
+      border-radius: 10px;
+    }
+    .page-jump-wrap input {
+      width: 48px;
+      padding: 4px 6px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+      outline: none;
+    }
+    .page-jump-wrap span {
+      font-size: 12px; color: var(--text-light);
+    }
     .modal-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.5);
@@ -255,19 +300,6 @@
       aspect-ratio: 1/1;
       border-radius: 12px;
       object-fit: cover;
-      margin-bottom: 16px;
-    }
-    .detail-img-placeholder {
-      width: 100%;
-      aspect-ratio: 1/1;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-      font-weight: 700;
-      color: #fff;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
       margin-bottom: 16px;
     }
     .detail-row {
@@ -378,6 +410,7 @@
       text-align: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       transition: transform 0.3s;
+      cursor: pointer;
     }
     .alert-card:hover { transform: translateY(-2px); }
     .alert-card-num {
@@ -399,6 +432,17 @@
       font-size: 16px;
       font-weight: 700;
       margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .list-section h2 .back-btn {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary-dark);
+      cursor: pointer;
+      text-decoration: underline;
+      display: none;
     }
     .empty-state {
       text-align: center;
@@ -421,7 +465,7 @@
       <div class="cn-input-wrap">
         <h2>欢迎来到爱娜娜随便吃</h2>
         <p>请输入你的 CN 昵称</p>
-        <input type="text" id="cnInput" placeholder="例如：结构" maxlength="20" autofocus>
+        <input type="text" id="cnInput" placeholder="例如：大神万理" maxlength="20" autofocus>
         <button class="btn-primary" onclick="saveCN()">进入</button>
       </div>
     </div>
@@ -468,7 +512,10 @@
         <div class="alert-stats" id="alertStats"></div>
       </div>
       <div class="list-section">
-        <h2>我的List</h2>
+        <h2 id="myListTitle">
+          我的List
+          <span class="back-btn" id="alertBackBtn" onclick="showAllList()">显示全部</span>
+        </h2>
         <div id="myListContainer"></div>
       </div>
     </div>
@@ -537,6 +584,9 @@
     let searchQuery = '';
     let currentPage = 1;
     const PAGE_SIZE = 18;
+
+    // 我的页面过滤状态：null=全部, 'guoxian', 'overdue', 'soon'
+    let myListFilter = null;
 
     function getList() {
       try { return JSON.parse(localStorage.getItem('ainana_list_' + cn) || '[]'); }
@@ -627,7 +677,26 @@
       return items;
     }
 
-    // ============ 卡片 ============
+    // ============ 首页卡片 ============
+    function buildCardImage(item) {
+      // 有实际图片
+      if (item.image && item.image !== '/') {
+        const gradient = getGradient(item.id);
+        const short = getShort(item.id);
+        return `
+          <img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          <div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>`;
+      }
+      // 无图片：显示默认图 + 文字叠加
+      const noteText = (item.note && item.note !== '/') ? item.note : '暂无图片^_^';
+      return `
+        <div class="card-img-wrap">
+          <img src="images/no-image.png" alt="暂无图片" loading="lazy">
+          <div class="card-img-overlay">${noteText}</div>
+        </div>`;
+    }
+
     function renderCards() {
       const items = getDisplayItems();
       const total = items.length;
@@ -641,12 +710,7 @@
         grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-state-icon"></div><div class="empty-state-text">暂无数据</div></div>`;
       } else {
         grid.innerHTML = pageItems.map(item => {
-          const gradient = getGradient(item.id);
-          const short = getShort(item.id);
-          const imgHtml = item.image && item.image !== '/' ?
-            `<img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
-            `<div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
-            `<div class="card-img-placeholder" style="background:${gradient}">${short}</div>`;
+          const imgHtml = buildCardImage(item);
           return `
             <div class="card" onclick="openDetail('${item.id}')">
               ${imgHtml}
@@ -662,7 +726,7 @@
       renderPagination(totalPages);
     }
 
-    // ============ 分页 ============
+    // ============ 分页（支持跳转） ============
     function renderPagination(totalPages) {
       const el = document.getElementById('pagination');
       if (totalPages <= 1) { el.innerHTML = ''; return; }
@@ -675,6 +739,13 @@
         }
       }
       html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+      // 跳转输入框
+      html += `
+        <div class="page-jump-wrap">
+          <input type="number" id="pageJumpInput" min="1" max="${totalPages}" value="${currentPage}" onkeypress="if(event.key==='Enter')jumpPage()">
+          <span>/ ${totalPages}</span>
+          <button class="page-btn" onclick="jumpPage()" style="padding:6px 10px;font-size:12px;">跳转</button>
+        </div>`;
       el.innerHTML = html;
     }
     function goPage(p) {
@@ -685,13 +756,33 @@
       renderCards();
       document.getElementById('homePage').scrollIntoView({ behavior: 'smooth' });
     }
+    function jumpPage() {
+      const input = document.getElementById('pageJumpInput');
+      if (!input) return;
+      const p = parseInt(input.value);
+      goPage(p);
+    }
 
     // ============ 详情弹窗 ============
+    function buildDetailImage(item) {
+      if (item.image && item.image !== '/') {
+        const gradient = getGradient(item.id);
+        const short = getShort(item.id);
+        return `
+          <img class="detail-img" src="${item.image}" alt="${item.id}"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          <div class="detail-img-placeholder" style="background:${gradient};display:none">${short}</div>`;
+      }
+      const noteText = (item.note && item.note !== '/') ? item.note : '暂无图片^_^';
+      return `
+        <div class="card-img-wrap" style="border-radius:12px;margin-bottom:16px;">
+          <img src="images/no-image.png" alt="暂无图片" style="border-radius:12px;">
+          <div class="card-img-overlay" style="border-radius:12px;background:rgba(255,255,255,0.8);">${noteText}</div>
+        </div>`;
+    }
     function openDetail(id) {
       const item = RAW_DATA.find(x => x.id === id);
       if (!item) return;
-      const gradient = getGradient(item.id);
-      const short = getShort(item.id);
       const isAdded = inList(id);
       const ddlDate = parseDate(item.storageDDL);
       const today = new Date(); today.setHours(0,0,0,0);
@@ -702,17 +793,13 @@
         else if (diff <= 30) { ddlClass = 'warning'; ddlText += ` (剩${diff}天)`; }
         else { ddlClass = 'safe'; ddlText += ` (剩${diff}天)`; }
       }
-      const detailImg = item.image && item.image !== '/' ?
-        `<img class="detail-img" src="${item.image}" alt="${item.id}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
-        `<div class="detail-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
-        `<div class="detail-img-placeholder" style="background:${gradient}">${short}</div>`;
       document.getElementById('detailModalContent').innerHTML = `
         <div class="modal-header">
           <div class="modal-title">商品详情</div>
           <button class="modal-close" onclick="closeDetail()">&times;</button>
         </div>
         <div class="modal-body">
-          ${detailImg}
+          ${buildDetailImage(item)}
           <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${item.id}</span></div>
           <div class="detail-row"><span class="detail-label">渠道</span><span class="detail-value">${normalize(item.channel)}</span></div>
           <div class="detail-row"><span class="detail-label">谷子状态</span><span class="detail-value">${item.status}</span></div>
@@ -760,16 +847,12 @@
 
     // ============ 我的页面 ============
     function renderMyPage() {
-      const list = getList();
-      document.getElementById('myAvatar').textContent = getShort(cn);
-      document.getElementById('myAvatar').style.background = getGradient(cn);
-      document.getElementById('myCnName').textContent = cn;
-      document.getElementById('listCount').textContent = list.length;
-
-      // 预警统计
+      const rawList = getList();
       const today = new Date(); today.setHours(0,0,0,0);
+
+      // 统计
       let guoxian = 0, overdue = 0, soon = 0;
-      list.forEach(item => {
+      rawList.forEach(item => {
         if (item.status === '国现可排发' || item.status === '现货可排发') guoxian++;
         const ddl = parseDate(item.storageDDL);
         if (ddl) {
@@ -778,38 +861,68 @@
           else if (diff <= 30) soon++;
         }
       });
+
+      // 应用过滤
+      let filteredList = rawList;
+      let listTitle = '我的List';
+      if (myListFilter === 'guoxian') {
+        filteredList = rawList.filter(x => x.status === '国现可排发' || x.status === '现货可排发');
+        listTitle = '国现可排发';
+      } else if (myListFilter === 'overdue') {
+        filteredList = rawList.filter(x => {
+          const ddl = parseDate(x.storageDDL);
+          if (!ddl) return false;
+          return Math.ceil((ddl - today) / (1000*60*60*24)) < 0;
+        });
+        listTitle = '囤货已超时';
+      } else if (myListFilter === 'soon') {
+        filteredList = rawList.filter(x => {
+          const ddl = parseDate(x.storageDDL);
+          if (!ddl) return false;
+          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+          return diff >= 0 && diff <= 30;
+        });
+        listTitle = '一个月内过期';
+      }
+
+      // 头像 + 名字
+      document.getElementById('myAvatar').textContent = getShort(cn);
+      document.getElementById('myAvatar').style.background = getGradient(cn);
+      document.getElementById('myCnName').textContent = cn;
+      document.getElementById('listCount').textContent = rawList.length;
+
+      // 预警卡片（带点击）
       document.getElementById('alertStats').innerHTML = `
-        <div class="alert-card green">
+        <div class="alert-card green" onclick="filterMyList('guoxian')">
           <div class="alert-card-num">${guoxian}</div>
           <div class="alert-card-label">国现可排发</div>
         </div>
-        <div class="alert-card red">
+        <div class="alert-card red" onclick="filterMyList('overdue')">
           <div class="alert-card-num">${overdue}</div>
           <div class="alert-card-label">囤货已超时</div>
         </div>
-        <div class="alert-card orange">
+        <div class="alert-card orange" onclick="filterMyList('soon')">
           <div class="alert-card-num">${soon}</div>
           <div class="alert-card-label">一个月内过期</div>
         </div>
       `;
 
+      // List标题与返回按钮
+      document.getElementById('myListTitle').firstChild.textContent = listTitle;
+      document.getElementById('alertBackBtn').style.display = myListFilter ? 'inline' : 'none';
+
       // List卡片
       const container = document.getElementById('myListContainer');
-      if (list.length === 0) {
+      if (filteredList.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
             <div class="empty-state-icon">&#128230;</div>
-            <div class="empty-state-text">还没有添加任何商品，去首页看看吧~</div>
+            <div class="empty-state-text">${myListFilter ? '没有满足该条件的商品' : '还没有添加任何商品，去首页看看吧~'}</div>
           </div>
         `;
       } else {
-        container.innerHTML = `<div class="card-grid">` + list.map(item => {
-          const gradient = getGradient(item.id);
-          const short = getShort(item.id);
-          const imgHtml = item.image && item.image !== '/' ?
-            `<img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
-            `<div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
-            `<div class="card-img-placeholder" style="background:${gradient}">${short}</div>`;
+        container.innerHTML = `<div class="card-grid">` + filteredList.map(item => {
+          const imgHtml = buildCardImage(item);
           return `
             <div class="card" onclick="openDetail('${item.id}')">
               ${imgHtml}
@@ -822,6 +935,16 @@
           `;
         }).join('') + `</div>`;
       }
+    }
+
+    function filterMyList(type) {
+      myListFilter = type;
+      renderMyPage();
+      document.getElementById('myPage').scrollIntoView({ behavior: 'smooth' });
+    }
+    function showAllList() {
+      myListFilter = null;
+      renderMyPage();
     }
 
     // ============ 启动 ============
