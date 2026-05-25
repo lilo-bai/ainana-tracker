@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>爱娜娜随便吃</title>
+  <style>
+    :root {
+      --primary: #FF8FAB;
+      --primary-dark: #FF6B9D;
+      --secondary: #4ECDC4;
+      --accent: #FFE66D;
+      --bg: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+      --card-bg: #fff;
+      --text: #333;
+      --text-light: #888;
+      --shadow: 0 4px 20px rgba(0,0,0,0.08);
+      --radius: 16px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+    }
+    .app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--primary-dark), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .cn-badge {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 2px 10px rgba(255,111,157,0.3);
+    }
+    .main-nav {
+      display: flex; gap: 8px; margin-bottom: 20px;
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255,255,255,0.7);
+      color: var(--text-light);
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+    .nav-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+    .page { display: none; }
+    .page.active { display: block; }
+    .search-bar { margin-bottom: 16px; }
+    .search-bar input {
+      width: 100%;
+      padding: 14px 20px;
+      border: 2px solid transparent;
+      border-radius: var(--radius);
+      font-size: 15px;
+      background: var(--card-bg);
+      box-shadow: var(--shadow);
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .search-bar input:focus {
+      border-color: var(--primary);
+    }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255,255,255,0.6);
+      color: var(--text-light);
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(255,111,157,0.3);
+    }
+    .tab-btn .count {
+      margin-left: 4px;
+      font-size: 11px;
+      opacity: 0.8;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+      position: relative;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .card-img {
+      width: 100%;
+      aspect-ratio: 1/1;
+      object-fit: cover;
+      display: block;
+    }
+    .card-img-placeholder {
+      width: 100%;
+      aspect-ratio: 1/1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .card-info {
+      padding: 12px;
+    }
+    .card-id {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-channel {
+      font-size: 11px;
+      color: var(--text-light);
+      margin-top: 4px;
+    }
+    .card-status {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-国现可排发 { background: #E8F5E9; color: #2E7D32; }
+    .status-现货可排发 { background: #E8F5E9; color: #2E7D32; }
+    .status-运回中 { background: #FFF3E0; color: #E65100; }
+    .status-岛内到货 { background: #E3F2FD; color: #1565C0; }
+    .status-开团中 { background: #F3E5F5; color: #7B1FA2; }
+    .status-待退补 { background: #FFF8E1; color: #F57F17; }
+    .status-囤货已超时 { background: #FFEBEE; color: #C62828; }
+    .status-已退款 { background: #ECEFF1; color: #546E7A; }
+    .status-未出荷 { background: #E8EAF6; color: #3F51B5; }
+    .status-已散 { background: #FBE9E7; color: #BF360C; }
+    .pagination {
+      display: flex; justify-content: center; align-items: center;
+      gap: 8px; margin-top: 20px; margin-bottom: 40px;
+    }
+    .page-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255,255,255,0.7);
+      color: var(--text);
+      transition: all 0.3s;
+    }
+    .page-btn:hover, .page-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+    }
+    .page-btn:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+      padding: 20px;
+    }
+    .modal {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      max-width: 420px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      animation: modalIn 0.3s ease;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.9) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal-header {
+      padding: 20px 20px 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .modal-close {
+      width: 32px; height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.3s;
+    }
+    .modal-close:hover { background: #e0e0e0; }
+    .modal-body { padding: 20px; }
+    .detail-img {
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 12px;
+      object-fit: cover;
+      margin-bottom: 16px;
+    }
+    .detail-img-placeholder {
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      margin-bottom: 16px;
+    }
+    .detail-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { font-size: 13px; color: var(--text-light); }
+    .detail-value { font-size: 14px; font-weight: 600; text-align: right; max-width: 60%; }
+    .detail-value.overdue { color: #C62828; }
+    .detail-value.warning { color: #E65100; }
+    .detail-value.safe { color: #2E7D32; }
+    .modal-actions {
+      padding: 0 20px 20px;
+      display: flex; gap: 10px;
+    }
+    .btn-primary {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 15px rgba(255,111,157,0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255,111,157,0.4);
+    }
+    .btn-primary.added {
+      background: linear-gradient(135deg, #a0a0a0, #888);
+      box-shadow: none;
+    }
+    .cn-input-wrap {
+      padding: 30px;
+      text-align: center;
+    }
+    .cn-input-wrap h2 {
+      font-size: 22px;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, var(--primary-dark), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .cn-input-wrap p {
+      font-size: 14px;
+      color: var(--text-light);
+      margin-bottom: 24px;
+    }
+    .cn-input-wrap input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 16px;
+      text-align: center;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.3s;
+    }
+    .cn-input-wrap input:focus {
+      border-color: var(--primary);
+    }
+    .cn-input-wrap .btn-primary {
+      width: 100%;
+    }
+    .my-header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px;
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .my-avatar {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .my-cn-block { flex: 1; }
+    .my-cn-name { font-size: 20px; font-weight: 700; }
+    .my-cn-desc { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+    .alert-section { margin-bottom: 24px; }
+    .alert-section h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex; align-items: center;
+      gap: 6px;
+    }
+    .alert-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .alert-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      transition: transform 0.3s;
+    }
+    .alert-card:hover { transform: translateY(-2px); }
+    .alert-card-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .alert-card-num {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .alert-card-label {
+      font-size: 12px;
+      color: var(--text-light);
+      font-weight: 600;
+    }
+    .alert-card.green .alert-card-num { color: #2E7D32; }
+    .alert-card.red .alert-card-num { color: #C62828; }
+    .alert-card.orange .alert-card-num { color: #E65100; }
+    .list-section { margin-bottom: 24px; }
+    .list-section h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-light);
+    }
+    .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state-text { font-size: 14px; }
+    @media (max-width: 640px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .header h1 { font-size: 22px; }
+      .alert-stats { grid-template-columns: 1fr; }
+      .app { padding: 12px; }
+      .alert-card { display: flex; align-items: center; text-align: left; gap: 12px; }
+      .alert-card-icon { margin-bottom: 0; font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- CN输入弹窗 -->
+  <div id="cnModal" class="modal-overlay">
+    <div class="modal">
+      <div class="cn-input-wrap">
+        <h2>欢迎来到爱娜娜随便吃</h2>
+        <p>请输入你的 CN 昵称</p>
+        <input type="text" id="cnInput" placeholder="例如：结构" maxlength="20" autofocus>
+        <button class="btn-primary" onclick="saveCN()">进入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div id="detailModal" class="modal-overlay" style="display:none;">
+    <div class="modal" id="detailModalContent"></div>
+  </div>
+
+  <!-- 主应用 -->
+  <div class="app" id="app" style="display:none;">
+    <header class="header">
+      <h1>爱娜娜随便吃</h1>
+      <div class="cn-badge" id="cnBadge"></div>
+    </header>
+
+    <nav class="main-nav">
+      <button class="nav-btn active" data-page="home" onclick="switchPage('home')">首页</button>
+      <button class="nav-btn" data-page="my" onclick="switchPage('my')">我的</button>
+    </nav>
+
+    <!-- 首页 -->
+    <div class="page active" id="homePage">
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索商品ID..." oninput="onSearch()">
+      </div>
+      <div class="tabs" id="tabContainer"></div>
+      <div class="card-grid" id="cardGrid"></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- 我的页面 -->
+    <div class="page" id="myPage">
+      <div class="my-header">
+        <div class="my-avatar" id="myAvatar"></div>
+        <div class="my-cn-block">
+          <div class="my-cn-name" id="myCnName"></div>
+          <div class="my-cn-desc">已添加 <span id="listCount">0</span> 件商品到List</div>
+        </div>
+      </div>
+      <div class="alert-section">
+        <h2>囤货时间预警</h2>
+        <div class="alert-stats" id="alertStats"></div>
+      </div>
+      <div class="list-section">
+        <h2>我的List</h2>
+        <div id="myListContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============ 数据 ============
+    let RAW_DATA = [];
+    let ALL_STATUS = [];
+    let TAB_ORDER = [];
+
+    function initData() {
+      ALL_STATUS = [...new Set(RAW_DATA.map(d => d.status))].sort();
+      TAB_ORDER = ['全部', ...ALL_STATUS];
+    }
+
+    fetch('data.json')
+      .then(r => r.json())
+      .then(data => {
+        RAW_DATA = data;
+        RAW_DATA.forEach(item => { if (!item.image) item.image = '/'; });
+        initData();
+        init();
+      })
+      .catch(err => {
+        console.error('加载数据失败', err);
+        document.body.innerHTML = '<div style="text-align:center;padding:60px;">数据加载失败，请刷新重试</div>';
+      });
+
+    // ============ 工具函数 ============
+    function hash(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) {
+        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+      }
+      return Math.abs(h);
+    }
+    const GRADIENTS = [
+      ['#FF9A9E','#FECFEF'],['#A18CD1','#FBC2EB'],['#84FAB0','#8FD3F4'],
+      ['#FFECD2','#FCB69F'],['#667EEA','#764BA2'],['#F093FB','#F5576C'],
+      ['#4FACFE','#00F2FE'],['#43E97B','#38F9D7'],['#FA709A','#FEE140'],
+      ['#30CFD0','#330867'],['#A8EDEA','#FED6E3'],['#D299C2','#FEF9D7']
+    ];
+    function getGradient(str) {
+      const g = GRADIENTS[hash(str) % GRADIENTS.length];
+      return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
+    }
+    function getShort(str) {
+      if (!str || str === '/') return '?';
+      const c = str.charAt(0);
+      return /[a-zA-Z]/.test(c) ? c.toUpperCase() : c;
+    }
+    function parseDate(str) {
+      if (!str || str === '/' || str === '-') return null;
+      const m = str.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (!m) return null;
+      return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+    }
+    function normalize(v) {
+      return (!v || v.trim() === '' || v === ' ') ? '/' : v.trim();
+    }
+
+    // ============ 状态管理 ============
+    let cn = localStorage.getItem('ainana_cn') || '';
+    let currentTab = '国现可排发';
+    let searchQuery = '';
+    let currentPage = 1;
+    const PAGE_SIZE = 18;
+
+    function getList() {
+      try { return JSON.parse(localStorage.getItem('ainana_list_' + cn) || '[]'); }
+      catch { return []; }
+    }
+    function saveList(list) {
+      localStorage.setItem('ainana_list_' + cn, JSON.stringify(list));
+    }
+    function inList(id) {
+      return getList().some(x => x.id === id);
+    }
+
+    // ============ 初始化 ============
+    function init() {
+      if (!cn) {
+        document.getElementById('cnModal').style.display = 'flex';
+      } else {
+        showApp();
+      }
+    }
+    function saveCN() {
+      const val = document.getElementById('cnInput').value.trim();
+      if (!val) return;
+      cn = val;
+      localStorage.setItem('ainana_cn', cn);
+      document.getElementById('cnModal').style.display = 'none';
+      showApp();
+    }
+    function showApp() {
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('cnBadge').textContent = 'CN: ' + cn;
+      renderTabs();
+      renderCards();
+    }
+    document.getElementById('cnInput').addEventListener('keypress', e => {
+      if (e.key === 'Enter') saveCN();
+    });
+
+    // ============ 导航 ============
+    function switchPage(page) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(page + 'Page').classList.add('active');
+      document.querySelector(`.nav-btn[data-page="${page}"]`).classList.add('active');
+      if (page === 'my') renderMyPage();
+    }
+
+    // ============ Tab ============
+    function renderTabs() {
+      const counts = {};
+      const items = getFilteredItems();
+      ALL_STATUS.forEach(s => counts[s] = items.filter(x => x.status === s).length);
+      counts['全部'] = items.length;
+
+      const container = document.getElementById('tabContainer');
+      container.innerHTML = TAB_ORDER.map(tab => {
+        const active = tab === currentTab ? 'active' : '';
+        const cnt = counts[tab] || 0;
+        return `<button class="tab-btn ${active}" onclick="setTab('${tab}')">${tab}<span class="count">${cnt}</span></button>`;
+      }).join('');
+    }
+    function setTab(tab) {
+      currentTab = tab;
+      currentPage = 1;
+      renderTabs();
+      renderCards();
+    }
+
+    // ============ 搜索 & 过滤 ============
+    function onSearch() {
+      searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+      currentPage = 1;
+      renderTabs();
+      renderCards();
+    }
+    function getFilteredItems() {
+      let items = RAW_DATA;
+      if (searchQuery) {
+        items = items.filter(x => x.id.toLowerCase().includes(searchQuery));
+      }
+      return items;
+    }
+    function getDisplayItems() {
+      let items = getFilteredItems();
+      if (currentTab !== '全部') {
+        items = items.filter(x => x.status === currentTab);
+      }
+      return items;
+    }
+
+    // ============ 卡片 ============
+    function renderCards() {
+      const items = getDisplayItems();
+      const total = items.length;
+      const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageItems = items.slice(start, start + PAGE_SIZE);
+
+      const grid = document.getElementById('cardGrid');
+      if (total === 0) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-state-icon"></div><div class="empty-state-text">暂无数据</div></div>`;
+      } else {
+        grid.innerHTML = pageItems.map(item => {
+          const gradient = getGradient(item.id);
+          const short = getShort(item.id);
+          const imgHtml = item.image && item.image !== '/' ?
+            `<img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
+            `<div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
+            `<div class="card-img-placeholder" style="background:${gradient}">${short}</div>`;
+          return `
+            <div class="card" onclick="openDetail('${item.id}')">
+              ${imgHtml}
+              <div class="card-info">
+                <div class="card-id">${item.id}</div>
+                <div class="card-channel">${item.channel || '/'}</div>
+                <span class="card-status status-${item.status}">${item.status}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+      renderPagination(totalPages);
+    }
+
+    // ============ 分页 ============
+    function renderPagination(totalPages) {
+      const el = document.getElementById('pagination');
+      if (totalPages <= 1) { el.innerHTML = ''; return; }
+      let html = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+          html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        } else if (i === currentPage - 2 || i === currentPage + 2) {
+          html += `<span style="color:#aaa;padding:0 4px;">...</span>`;
+        }
+      }
+      html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+      el.innerHTML = html;
+    }
+    function goPage(p) {
+      const items = getDisplayItems();
+      const totalPages = Math.ceil(items.length / PAGE_SIZE) || 1;
+      if (p < 1 || p > totalPages) return;
+      currentPage = p;
+      renderCards();
+      document.getElementById('homePage').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ============ 详情弹窗 ============
+    function openDetail(id) {
+      const item = RAW_DATA.find(x => x.id === id);
+      if (!item) return;
+      const gradient = getGradient(item.id);
+      const short = getShort(item.id);
+      const isAdded = inList(id);
+      const ddlDate = parseDate(item.storageDDL);
+      const today = new Date(); today.setHours(0,0,0,0);
+      let ddlClass = '', ddlText = item.storageDDL;
+      if (ddlDate) {
+        const diff = Math.ceil((ddlDate - today) / (1000*60*60*24));
+        if (diff < 0) { ddlClass = 'overdue'; ddlText += ` (已超时${Math.abs(diff)}天)`; }
+        else if (diff <= 30) { ddlClass = 'warning'; ddlText += ` (剩${diff}天)`; }
+        else { ddlClass = 'safe'; ddlText += ` (剩${diff}天)`; }
+      }
+      const detailImg = item.image && item.image !== '/' ?
+        `<img class="detail-img" src="${item.image}" alt="${item.id}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
+        `<div class="detail-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
+        `<div class="detail-img-placeholder" style="background:${gradient}">${short}</div>`;
+      document.getElementById('detailModalContent').innerHTML = `
+        <div class="modal-header">
+          <div class="modal-title">商品详情</div>
+          <button class="modal-close" onclick="closeDetail()">&times;</button>
+        </div>
+        <div class="modal-body">
+          ${detailImg}
+          <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${item.id}</span></div>
+          <div class="detail-row"><span class="detail-label">渠道</span><span class="detail-value">${normalize(item.channel)}</span></div>
+          <div class="detail-row"><span class="detail-label">谷子状态</span><span class="detail-value">${item.status}</span></div>
+          <div class="detail-row"><span class="detail-label">来源</span><span class="detail-value">${item.sheet}</span></div>
+          <div class="detail-row"><span class="detail-label">到货日</span><span class="detail-value">${normalize(item.arrivalDate)}</span></div>
+          <div class="detail-row"><span class="detail-label">免费囤货ddl</span><span class="detail-value ${ddlClass}">${normalize(ddlText)}</span></div>
+          <div class="detail-row"><span class="detail-label">备注</span><span class="detail-value">${normalize(item.note)}</span></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary ${isAdded ? 'added' : ''}" onclick="toggleList('${item.id}', this)">
+            ${isAdded ? '已添加' : '添加List'}
+          </button>
+        </div>
+      `;
+      document.getElementById('detailModal').style.display = 'flex';
+    }
+    function closeDetail() {
+      document.getElementById('detailModal').style.display = 'none';
+    }
+    document.getElementById('detailModal').addEventListener('click', e => {
+      if (e.target.id === 'detailModal') closeDetail();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeDetail();
+    });
+
+    // ============ List操作 ============
+    function toggleList(id, btn) {
+      let list = getList();
+      const idx = list.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        btn.textContent = '添加List';
+        btn.classList.remove('added');
+      } else {
+        const item = RAW_DATA.find(x => x.id === id);
+        if (item) {
+          list.push({ ...item, addedAt: new Date().toISOString() });
+          btn.textContent = '已添加';
+          btn.classList.add('added');
+        }
+      }
+      saveList(list);
+    }
+
+    // ============ 我的页面 ============
+    function renderMyPage() {
+      const list = getList();
+      document.getElementById('myAvatar').textContent = getShort(cn);
+      document.getElementById('myAvatar').style.background = getGradient(cn);
+      document.getElementById('myCnName').textContent = cn;
+      document.getElementById('listCount').textContent = list.length;
+
+      // 预警统计
+      const today = new Date(); today.setHours(0,0,0,0);
+      let guoxian = 0, overdue = 0, soon = 0;
+      list.forEach(item => {
+        if (item.status === '国现可排发' || item.status === '现货可排发') guoxian++;
+        const ddl = parseDate(item.storageDDL);
+        if (ddl) {
+          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+          if (diff < 0) overdue++;
+          else if (diff <= 30) soon++;
+        }
+      });
+      document.getElementById('alertStats').innerHTML = `
+        <div class="alert-card green">
+          <div class="alert-card-icon">&#9989;</div>
+          <div>
+            <div class="alert-card-num">${guoxian}</div>
+            <div class="alert-card-label">国现可排发</div>
+          </div>
+        </div>
+        <div class="alert-card red">
+          <div class="alert-card-icon">&#9940;</div>
+          <div>
+            <div class="alert-card-num">${overdue}</div>
+            <div class="alert-card-label">囤货已超时</div>
+          </div>
+        </div>
+        <div class="alert-card orange">
+          <div class="alert-card-icon">&#9200;</div>
+          <div>
+            <div class="alert-card-num">${soon}</div>
+            <div class="alert-card-label">一个月内过期</div>
+          </div>
+        </div>
+      `;
+
+      // List卡片
+      const container = document.getElementById('myListContainer');
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">&#128230;</div>
+            <div class="empty-state-text">还没有添加任何商品，去首页看看吧~</div>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `<div class="card-grid">` + list.map(item => {
+          const gradient = getGradient(item.id);
+          const short = getShort(item.id);
+          const imgHtml = item.image && item.image !== '/' ?
+            `<img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` +
+            `<div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>` :
+            `<div class="card-img-placeholder" style="background:${gradient}">${short}</div>`;
+          return `
+            <div class="card" onclick="openDetail('${item.id}')">
+              ${imgHtml}
+              <div class="card-info">
+                <div class="card-id">${item.id}</div>
+                <div class="card-channel">${item.channel || '/'}</div>
+                <span class="card-status status-${item.status}">${item.status}</span>
+              </div>
+            </div>
+          `;
+        }).join('') + `</div>`;
+      }
+    }
+
+    // ============ 启动 ============
+    // init() 由 fetch('data.json') 成功后自动调用
+  </script>
+</body>
+</html>
