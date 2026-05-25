@@ -586,7 +586,6 @@
       .then(r => r.json())
       .then(data => {
         RAW_DATA = data;
-        RAW_DATA.forEach(item => { if (!item.image) item.image = '/'; });
         initData();
         init();
       })
@@ -594,6 +593,25 @@
         console.error('加载数据失败', err);
         document.body.innerHTML = '<div style="text-align:center;padding:60px;">数据加载失败，请刷新重试</div>';
       });
+
+    // ============ 旧数据路径兼容 ============
+    function fixLegacyPath(item) {
+      if (!item || !item.image || item.image === '/') return item;
+      // 旧格式：images/image43.jpg（无子目录）
+      if (item.image.startsWith('images/image') && !item.image.includes('/full/') && !item.image.includes('/thumb/')) {
+        const fname = item.image.split('/').pop();
+        const stem = fname.replace(/\.[^.]+$/, '');
+        item.image = 'images/full/' + fname;
+        item.thumb = 'images/thumb/' + stem + '.jpg';
+      }
+      // 有 image 但没有 thumb（旧数据）
+      else if (!item.thumb && item.image && item.image !== '/') {
+        const fname = item.image.split('/').pop();
+        const stem = fname.replace(/\.[^.]+$/, '');
+        item.thumb = 'images/thumb/' + stem + '.jpg';
+      }
+      return item;
+    }
 
     // ============ 工具函数 ============
     function hash(str) {
@@ -639,7 +657,10 @@
     let myListFilter = null;
 
     function getList() {
-      try { return JSON.parse(localStorage.getItem('ainana_list_' + cn) || '[]'); }
+      try { 
+        let list = JSON.parse(localStorage.getItem('ainana_list_' + cn) || '[]');
+        return list.map(fixLegacyPath);
+      }
       catch { return []; }
     }
     function saveList(list) {
@@ -728,22 +749,25 @@
     }
 
     // ============ 首页卡片 ============
+    const NO_IMG_THUMB = 'images/thumb/no-image.png';
+    const NO_IMG_FULL  = 'images/full/no-image.png';
+
     function buildCardImage(item) {
-      // 有实际图片
-      if (item.image && item.image !== '/') {
+      // 有实际图片：卡片显示缩略图，点击查看器时加载原图
+      if (item.thumb && item.thumb !== '/') {
         const gradient = getGradient(item.id);
         const short = getShort(item.id);
         return `
-          <img class="card-img" src="${item.image}" alt="${item.id}" loading="lazy"
-            onclick="event.stopPropagation();openImageViewer('${item.image}')"
+          <img class="card-img" src="${item.thumb}" alt="${item.id}" loading="lazy"
+            onclick="event.stopPropagation();openImageViewer('${item.image || item.thumb}')"
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-          <div class="card-img-placeholder" style="background:${gradient};display:none" onclick="event.stopPropagation();openImageViewer('${item.image}')">${short}</div>`;
+          <div class="card-img-placeholder" style="background:${gradient};display:none" onclick="event.stopPropagation();openImageViewer('${item.image || item.thumb}')">${short}</div>`;
       }
       // 无图片：显示默认图 + 文字叠加
       const overlayText = item.imgText || '暂无图片^ ^';
       return `
-        <div class="card-img-wrap" onclick="event.stopPropagation();openImageViewer('images/no-image.png')">
-          <img src="images/no-image.png" alt="暂无图片" loading="lazy">
+        <div class="card-img-wrap" onclick="event.stopPropagation();openImageViewer('${NO_IMG_FULL}')">
+          <img src="${NO_IMG_THUMB}" alt="暂无图片" loading="lazy">
           <div class="card-img-overlay">${overlayText}</div>
         </div>`;
     }
@@ -827,8 +851,8 @@
       }
       const overlayText = item.imgText || '暂无图片^ ^';
       return `
-        <div class="card-img-wrap" style="border-radius:12px;margin-bottom:16px;cursor:zoom-in;" onclick="openImageViewer('images/no-image.png')">
-          <img src="images/no-image.png" alt="暂无图片" style="border-radius:12px;">
+        <div class="card-img-wrap" style="border-radius:12px;margin-bottom:16px;cursor:zoom-in;" onclick="openImageViewer('${NO_IMG_FULL}')">
+          <img src="${NO_IMG_FULL}" alt="暂无图片" style="border-radius:12px;">
           <div class="card-img-overlay" style="border-radius:12px;background:rgba(0,0,0,0.25);">${overlayText}</div>
         </div>`;
     }
