@@ -373,20 +373,17 @@
     }
     .alert-card {
       background: var(--card-bg);
-      border-radius: var(--radius);
-      padding: 16px;
+      border-radius: 12px;
+      padding: 10px 6px;
       text-align: center;
-      box-shadow: var(--shadow);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       transition: transform 0.3s;
     }
     .alert-card:hover { transform: translateY(-2px); }
-    .alert-card-icon {
-      font-size: 28px;
-      margin-bottom: 8px;
-    }
     .alert-card-num {
-      font-size: 28px;
+      font-size: 24px;
       font-weight: 800;
+      line-height: 1;
       margin-bottom: 4px;
     }
     .alert-card-label {
@@ -413,10 +410,7 @@
     @media (max-width: 640px) {
       .card-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
       .header h1 { font-size: 22px; }
-      .alert-stats { grid-template-columns: 1fr; }
-      .app { padding: 12px; }
-      .alert-card { display: flex; align-items: center; text-align: left; gap: 12px; }
-      .alert-card-icon { margin-bottom: 0; font-size: 24px; }
+      .alert-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     }
   </style>
 </head>
@@ -786,25 +780,16 @@
       });
       document.getElementById('alertStats').innerHTML = `
         <div class="alert-card green">
-          <div class="alert-card-icon">&#9989;</div>
-          <div>
-            <div class="alert-card-num">${guoxian}</div>
-            <div class="alert-card-label">国现可排发</div>
-          </div>
+          <div class="alert-card-num">${guoxian}</div>
+          <div class="alert-card-label">国现可排发</div>
         </div>
         <div class="alert-card red">
-          <div class="alert-card-icon">&#9940;</div>
-          <div>
-            <div class="alert-card-num">${overdue}</div>
-            <div class="alert-card-label">囤货已超时</div>
-          </div>
+          <div class="alert-card-num">${overdue}</div>
+          <div class="alert-card-label">囤货已超时</div>
         </div>
         <div class="alert-card orange">
-          <div class="alert-card-icon">&#9200;</div>
-          <div>
-            <div class="alert-card-num">${soon}</div>
-            <div class="alert-card-label">一个月内过期</div>
-          </div>
+          <div class="alert-card-num">${soon}</div>
+          <div class="alert-card-label">一个月内过期</div>
         </div>
       `;
 
