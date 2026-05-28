@@ -125,6 +125,7 @@
       overflow: hidden;
       box-shadow: var(--shadow);
       cursor: pointer;
+      position: relative;
       transition: transform 0.3s, box-shadow 0.3s;
       position: relative;
     }
@@ -579,6 +580,21 @@
       z-index: 2;
       white-space: nowrap;
     }
+    .card-days-banner {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      text-align: center;
+      z-index: 3;
+      letter-spacing: 0.5px;
+      pointer-events: none;
+    }
+    .banner-overdue { background: rgba(198, 40, 40, 0.92); }
+    .banner-soon { background: rgba(230, 81, 0, 0.9); }
+    .banner-safe { background: rgba(46, 125, 50, 0.85); }
   </style>
 </head>
 <body>
@@ -676,8 +692,7 @@
       { key: '已超时', label: '已超时', filter: (item, today) => {
         const ddl = parseDate(item.storageDDL);
         if (!ddl) return false;
-        const diff = Math.ceil((ddl - today) / (1000*60*60*24));
-        return diff < 0;
+        return ddl < today;
       }},
       { key: '运回中', label: '运回中', filter: item => item.status === '运回中' },
       { key: '已退款', label: '已退款', filter: item => item.status === '已退款' }
@@ -782,32 +797,46 @@
     function syncListItems() {
       const list = getList();
       return list.map(saved => {
+        if (!saved || !saved.id) return null;
         const fresh = RAW_DATA.find(x => x.id === saved.id);
         if (fresh) {
           // 保留 addedAt，用最新数据覆盖
           return { ...fresh, addedAt: saved.addedAt };
         } else {
-          // 已从表中移除，保留旧快照但标记 stale
-          return { ...saved, _stale: true };
+          // 已从表中移除，保留旧快照但标记 stale，补全缺失字段防止渲染崩溃
+          return {
+            id: saved.id,
+            status: saved.status || '/',
+            channel: saved.channel || '/',
+            storageDDL: saved.storageDDL || '/',
+            arrivalDate: saved.arrivalDate || '/',
+            note: saved.note || '/',
+            orderNote: saved.orderNote || '/',
+            image: saved.image || '/',
+            thumb: saved.thumb || '/',
+            sheet: saved.sheet || '/',
+            addedAt: saved.addedAt,
+            _stale: true
+          };
         }
-      });
+      }).filter(Boolean);
     }
 
     // ============ 顶部过期提醒横幅 ============
     function checkStorageAlerts() {
       if (sessionStorage.getItem('ainana_alert_dismissed') === '1') return;
       const today = new Date(); today.setHours(0,0,0,0);
+      // 只提醒：国现可排发/现货可排发 但实际已过囤货期的（最紧急，需尽快联系排发）
       const alerts = RAW_DATA.filter(item => {
-        // 已终止状态不需要囤货提醒
-        if (['已退款', '已排发', '国现可排发', '现货可排发'].includes(item.status)) return false;
+        if (item.status !== '国现可排发' && item.status !== '现货可排发') return false;
         const ddl = parseDate(item.storageDDL);
         if (!ddl) return false;
         return ddl < today;
       });
       if (alerts.length > 0) {
         const text = alerts.length === 1
-          ? `⚠️ 有 1 件谷子囤货已超时，点击查看`
-          : `⚠️ 有 ${alerts.length} 件谷子囤货已超时，点击查看`;
+          ? `⚠️ 有 1 件国现已超期，请及时排发`
+          : `⚠️ 有 ${alerts.length} 件国现已超期，请及时排发`;
         document.getElementById('alertBannerText').textContent = text;
         document.getElementById('alertBanner').classList.add('show');
       }
@@ -983,15 +1012,19 @@
           const imgHtml = buildCardImage(item);
           const isAdded = inList(item.id);
           const newBadge = NEW_BADGES.has(item.id) ? '<span class="new-badge">New</span>' : '';
+          const daysBanner = getDaysBanner(item);
+          const safeId = (item.id || '').replace(/'/g, "\\'");
+          const safeStatus = (item.status || '/').replace(/\s/g, '_');
           return `
-            <div class="card" onclick="openDetail('${item.id}')">
+            <div class="card" onclick="openDetail('${safeId}')">
+              ${daysBanner}
               ${newBadge}
               ${imgHtml}
               <div class="card-info">
-                <div class="card-id">${item.id}</div>
+                <div class="card-id">${item.id || '?'}</div>
                 <div class="card-channel">${item.channel || '/'}</div>
-                <span class="card-status status-${item.status}">${item.status}</span>
-                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${item.id}', this)">${isAdded ? '\u2713' : '+'}</button>
+                <span class="card-status status-${safeStatus}">${item.status || '/'}</span>
+                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${safeId}', this)">${isAdded ? '\u2713' : '+'}</button>
               </div>
             </div>
           `;
@@ -1149,6 +1182,28 @@
       }
     });
 
+    // 卡片顶部天数横幅
+    function getDaysBanner(item) {
+      const ddl = parseDate(item.storageDDL);
+      if (!ddl) {
+        if (item.status === '国现可排发' || item.status === '现货可排发') {
+          return '<div class="card-days-banner banner-safe">国现可排发</div>';
+        }
+        return '';
+      }
+      const today = new Date(); today.setHours(0,0,0,0);
+      const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+      if (diff < 0) {
+        return `<div class="card-days-banner banner-overdue">已超时${Math.abs(diff)}天</div>`;
+      } else if (diff <= 7) {
+        return `<div class="card-days-banner banner-overdue">剩${diff}天</div>`;
+      } else if (diff <= 30) {
+        return `<div class="card-days-banner banner-soon">剩${diff}天</div>`;
+      } else {
+        return `<div class="card-days-banner banner-safe">剩${diff}天</div>`;
+      }
+    }
+
     // ============ List操作 ============
     function toggleList(id, btn) {
       let list = getList();
@@ -1170,107 +1225,122 @@
 
     // ============ 我的页面 ============
     function renderMyPage() {
-      const rawList = syncListItems();
-      const today = new Date(); today.setHours(0,0,0,0);
-      const staleCount = rawList.filter(x => x._stale).length;
+      try {
+        const rawList = syncListItems();
+        // 倒序排列：最新添加的在前
+        const sortedList = [...rawList].reverse();
+        const today = new Date(); today.setHours(0,0,0,0);
+        const staleCount = sortedList.filter(x => x._stale).length;
 
-      // 统计（基于最新数据，stale项也算）
-      let guoxian = 0, overdue = 0, soon = 0;
-      rawList.forEach(item => {
-        if (item.status === '国现可排发' || item.status === '现货可排发') guoxian++;
-        const ddl = parseDate(item.storageDDL);
-        if (ddl) {
-          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
-          if (diff < 0) overdue++;
-          else if (diff <= 30) soon++;
+        // 统计（基于最新数据，stale项也算）
+        let guoxian = 0, overdue = 0, soon = 0;
+        sortedList.forEach(item => {
+          const status = item.status || '/';
+          if (status === '国现可排发' || status === '现货可排发') guoxian++;
+          const ddl = parseDate(item.storageDDL);
+          if (ddl) {
+            const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+            if (diff < 0) overdue++;
+            else if (diff <= 30) soon++;
+          }
+        });
+
+        // 应用过滤
+        let filteredList = sortedList;
+        let listTitle = '我的List';
+        if (myListFilter === 'guoxian') {
+          filteredList = sortedList.filter(x =>
+            x.status === '国现可排发' || x.status === '现货可排发');
+          listTitle = '国现可排发';
+        } else if (myListFilter === 'overdue') {
+          filteredList = sortedList.filter(x => {
+            const ddl = parseDate(x.storageDDL);
+            if (!ddl) return false;
+            return ddl < today;
+          });
+          listTitle = '囤货已超时';
+        } else if (myListFilter === 'soon') {
+          filteredList = sortedList.filter(x => {
+            const ddl = parseDate(x.storageDDL);
+            if (!ddl) return false;
+            const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+            return diff >= 0 && diff <= 30;
+          });
+          listTitle = '一个月内过期';
         }
-      });
 
-      // 应用过滤
-      let filteredList = rawList;
-      let listTitle = '我的List';
-      if (myListFilter === 'guoxian') {
-        filteredList = rawList.filter(x => x.status === '国现可排发' || x.status === '现货可排发');
-        listTitle = '国现可排发';
-      } else if (myListFilter === 'overdue') {
-        filteredList = rawList.filter(x => {
-          const ddl = parseDate(x.storageDDL);
-          if (!ddl) return false;
-          return Math.ceil((ddl - today) / (1000*60*60*24)) < 0;
-        });
-        listTitle = '囤货已超时';
-      } else if (myListFilter === 'soon') {
-        filteredList = rawList.filter(x => {
-          const ddl = parseDate(x.storageDDL);
-          if (!ddl) return false;
-          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
-          return diff >= 0 && diff <= 30;
-        });
-        listTitle = '一个月内过期';
-      }
+        // 头像 + 名字
+        const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
+        if (cn) {
+          document.getElementById('myAvatar').textContent = getShort(cn);
+          document.getElementById('myAvatar').style.background = getGradient(cn);
+          document.getElementById('myCnName').textContent = cn;
+          document.getElementById('myCnName').style.color = '';
+          document.getElementById('myCnDesc').textContent = `已添加 ${sortedList.length} 件商品到List${staleTip}`;
+        } else {
+          document.getElementById('myAvatar').textContent = '?';
+          document.getElementById('myAvatar').style.background = '#ccc';
+          document.getElementById('myCnName').textContent = '请设置昵称';
+          document.getElementById('myCnName').style.color = '#aaa';
+          document.getElementById('myCnDesc').textContent = '点击上方区域设置你的CN';
+        }
+        document.getElementById('listCount').textContent = sortedList.length;
 
-      // 头像 + 名字（未设置时显示提示）
-      const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
-      if (cn) {
-        document.getElementById('myAvatar').textContent = getShort(cn);
-        document.getElementById('myAvatar').style.background = getGradient(cn);
-        document.getElementById('myCnName').textContent = cn;
-        document.getElementById('myCnName').style.color = '';
-        document.getElementById('myCnDesc').textContent = `已添加 ${rawList.length} 件商品到List${staleTip}`;
-      } else {
-        document.getElementById('myAvatar').textContent = '?';
-        document.getElementById('myAvatar').style.background = '#ccc';
-        document.getElementById('myCnName').textContent = '请设置昵称';
-        document.getElementById('myCnName').style.color = '#aaa';
-        document.getElementById('myCnDesc').textContent = '点击上方区域设置你的CN';
-      }
-      document.getElementById('listCount').textContent = rawList.length;
-
-      // 预警卡片（带点击）
-      document.getElementById('alertStats').innerHTML = `
-        <div class="alert-card green" onclick="filterMyList('guoxian')">
-          <div class="alert-card-num">${guoxian}</div>
-          <div class="alert-card-label">国现可排发</div>
-        </div>
-        <div class="alert-card red" onclick="filterMyList('overdue')">
-          <div class="alert-card-num">${overdue}</div>
-          <div class="alert-card-label">囤货已超时</div>
-        </div>
-        <div class="alert-card orange" onclick="filterMyList('soon')">
-          <div class="alert-card-num">${soon}</div>
-          <div class="alert-card-label">一个月内过期</div>
-        </div>
-      `;
-
-      // List标题与返回按钮
-      document.getElementById('myListTitle').firstChild.textContent = listTitle;
-      document.getElementById('alertBackBtn').style.display = myListFilter ? 'inline' : 'none';
-
-      // List卡片
-      const container = document.getElementById('myListContainer');
-      if (filteredList.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-state-icon">&#128230;</div>
-            <div class="empty-state-text">${myListFilter ? '没有满足该条件的商品' : '还没有添加任何商品，去首页看看吧~'}</div>
+        // 预警卡片
+        document.getElementById('alertStats').innerHTML = `
+          <div class="alert-card green" onclick="filterMyList('guoxian')">
+            <div class="alert-card-num">${guoxian}</div>
+            <div class="alert-card-label">国现可排发</div>
+          </div>
+          <div class="alert-card red" onclick="filterMyList('overdue')">
+            <div class="alert-card-num">${overdue}</div>
+            <div class="alert-card-label">囤货已超时</div>
+          </div>
+          <div class="alert-card orange" onclick="filterMyList('soon')">
+            <div class="alert-card-num">${soon}</div>
+            <div class="alert-card-label">一个月内过期</div>
           </div>
         `;
-      } else {
-        container.innerHTML = `<div class="card-grid">` + filteredList.map(item => {
-          const imgHtml = buildCardImage(item);
-          const staleClass = item._stale ? ' stale' : '';
-          const statusText = item._stale ? item.status : item.status;
-          return `
-            <div class="card${staleClass}" onclick="openDetail('${item.id}')">
-              ${imgHtml}
-              <div class="card-info">
-                <div class="card-id">${item.id}</div>
-                <div class="card-channel">${item.channel || '/'}</div>
-                <span class="card-status status-${statusText}">${statusText}</span>
-              </div>
+
+        // 标题与返回按钮（安全设置：找文本节点而不是 firstChild）
+        const titleEl = document.getElementById('myListTitle');
+        const textNode = [...titleEl.childNodes].find(n => n.nodeType === 3);
+        if (textNode) textNode.textContent = listTitle + ' ';
+        document.getElementById('alertBackBtn').style.display = myListFilter ? 'inline' : 'none';
+
+        // List卡片
+        const container = document.getElementById('myListContainer');
+        if (filteredList.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">&#128230;</div>
+              <div class="empty-state-text">${myListFilter ? '没有满足该条件的商品' : '还没有添加任何商品，去首页看看吧~'}</div>
             </div>
           `;
-        }).join('') + `</div>`;
+        } else {
+          container.innerHTML = '<div class="card-grid">' + filteredList.map(item => {
+            const imgHtml = buildCardImage(item);
+            const daysBanner = getDaysBanner(item);
+            const staleClass = item._stale ? ' stale' : '';
+            const statusText = (item.status || '/').replace(/\s/g, '_');
+            const safeId = (item.id || '').replace(/'/g, "\\'");
+            return `
+              <div class="card${staleClass}" onclick="openDetail('${safeId}')">
+                ${daysBanner}
+                ${imgHtml}
+                <div class="card-info">
+                  <div class="card-id">${item.id || '?'}</div>
+                  <div class="card-channel">${item.channel || '/'}</div>
+                  <span class="card-status status-${statusText}">${item.status || '/'}</span>
+                </div>
+              </div>
+            `;
+          }).join('') + '</div>';
+        }
+      } catch (err) {
+        console.error('renderMyPage error:', err);
+        document.getElementById('myListContainer').innerHTML =
+          '<div style="padding:40px;text-align:center;color:#C62828;font-weight:600;">渲染出错: ' + (err.message || err) + '</div>';
       }
     }
 
