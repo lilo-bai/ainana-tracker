@@ -592,9 +592,9 @@
       letter-spacing: 0.5px;
       pointer-events: none;
     }
-    .banner-overdue { background: rgba(198, 40, 40, 0.92); }
-    .banner-soon { background: rgba(230, 81, 0, 0.9); }
-    .banner-safe { background: rgba(46, 125, 50, 0.85); }
+    .banner-overdue { background: rgba(198, 40, 40, 0.65); }
+    .banner-soon { background: rgba(230, 81, 0, 0.6); }
+    .banner-safe { background: rgba(46, 125, 50, 0.55); }
   </style>
 </head>
 <body>
@@ -700,8 +700,6 @@
 
     function initData() {
       ALL_STATUS = [...new Set(RAW_DATA.map(d => d.status))].sort();
-      // 倒序排列，最新数据在前（原始数据按Excel行序，旧→新，reverse后新→旧）
-      RAW_DATA.reverse();
       // 检查状态变化（New角标）
       checkStatusChanges();
       // 记录同步时间
@@ -971,7 +969,32 @@
         const today = new Date(); today.setHours(0,0,0,0);
         items = items.filter(item => tab.filter(item, today));
       }
-      return items; // RAW_DATA已在initData中reverse，所以这里是倒序
+      // 统一按 free storage DDL 排序
+      const today = new Date(); today.setHours(0,0,0,0);
+      items = sortByDDL(items, currentTab, today);
+      return items;
+    }
+
+    // 统一按囤货DDL排序
+    function sortByDDL(items, tabKey, today) {
+      return [...items].sort((a, b) => {
+        const ddlA = parseDate(a.storageDDL);
+        const ddlB = parseDate(b.storageDDL);
+        // DDL为空视为 Infinity（排到最后，除非国现Tab需要排最前）
+        const diffA = ddlA ? Math.ceil((ddlA - today) / (1000*60*60*24)) : Infinity;
+        const diffB = ddlB ? Math.ceil((ddlB - today) / (1000*60*60*24)) : Infinity;
+
+        if (tabKey === '国现可排发') {
+          // 剩余天数从多到少（DDL远的在前）→ diff 大的在前
+          return diffB - diffA;
+        } else if (tabKey === '已超时') {
+          // 逾期天数从少到多（diff 越接近0越新）→ diff 大的在前（-1 > -5）
+          return diffB - diffA;
+        } else {
+          // 全部/即将到期/待退补/运回中/已退款：剩余天数从少到多
+          return diffA - diffB;
+        }
+      });
     }
 
     // ============ 首页卡片 ============
@@ -984,13 +1007,12 @@
         const short = getShort(item.id);
         return `
           <img class="card-img" src="${item.thumb}" alt="${item.id}" loading="lazy"
-            onclick="event.stopPropagation();openImageViewer('${item.image || item.thumb}')"
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-          <div class="card-img-placeholder" style="background:${gradient};display:none" onclick="event.stopPropagation();openImageViewer('${item.image || item.thumb}')">${short}</div>`;
+          <div class="card-img-placeholder" style="background:${gradient};display:none">${short}</div>`;
       }
       const overlayText = item.imgText || '暂无图片^ ^';
       return `
-        <div class="card-img-wrap" onclick="event.stopPropagation();openImageViewer('${NO_IMG_FULL}')">
+        <div class="card-img-wrap">
           <img src="${NO_IMG_THUMB}" alt="暂无图片" loading="lazy">
           <div class="card-img-overlay">${overlayText}</div>
         </div>`;
@@ -1024,7 +1046,7 @@
                 <div class="card-id">${item.id || '?'}</div>
                 <div class="card-channel">${item.channel || '/'}</div>
                 <span class="card-status status-${safeStatus}">${item.status || '/'}</span>
-                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${safeId}', this)">${isAdded ? '\u2713' : '+'}</button>
+                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${safeId}', this)">${isAdded ? '移除List' : '+'}</button>
               </div>
             </div>
           `;
@@ -1044,7 +1066,7 @@
         const item = RAW_DATA.find(x => x.id === id);
         if (item) {
           list.push({ ...item, addedAt: new Date().toISOString() });
-          btn.textContent = '\u2713';
+          btn.textContent = '移除List';
           btn.classList.add('added');
         }
       }
@@ -1142,7 +1164,7 @@
         </div>
         <div class="modal-actions">
           <button class="btn-primary ${isAdded ? 'added' : ''}" onclick="toggleList('${item.id}', this)">
-            ${isAdded ? '已添加' : '添加List'}
+            ${isAdded ? '移除List' : '添加List'}
           </button>
         </div>
       `;
@@ -1216,7 +1238,7 @@
         const item = RAW_DATA.find(x => x.id === id);
         if (item) {
           list.push({ ...item, addedAt: new Date().toISOString() });
-          btn.textContent = '已添加';
+          btn.textContent = '移除List';
           btn.classList.add('added');
         }
       }
@@ -1247,6 +1269,8 @@
       // 应用过滤
       let filteredList = sortedList;
       let listTitle = '我的List';
+      // My页面过滤后也要统一按DDL排序（过滤类型映射到对应的Tab key）
+      const filterToTab = { guoxian: '国现可排发', overdue: '已超时', soon: '即将到期' };
       if (myListFilter === 'guoxian') {
         filteredList = sortedList.filter(x =>
           x.status === '国现可排发' || x.status === '现货可排发');
@@ -1267,6 +1291,8 @@
         });
         listTitle = '一个月内过期';
       }
+      // My页面也按DDL统一排序
+      filteredList = sortByDDL(filteredList, filterToTab[myListFilter] || '全部', today);
 
       // 头像 + 名字（用 innerHTML 保留 listCount span，不能用 textContent 否则子节点会被清）
       const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
