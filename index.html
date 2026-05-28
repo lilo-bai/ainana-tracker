@@ -37,14 +37,11 @@
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
-    .cn-badge {
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      color: #fff;
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 2px 10px rgba(255,111,157,0.3);
+    .sync-info {
+      font-size: 12px;
+      color: var(--text-light);
+      text-align: right;
+      line-height: 1.4;
     }
     .main-nav {
       display: flex; gap: 8px; margin-bottom: 20px;
@@ -182,6 +179,8 @@
     }
     .card-info {
       padding: 12px;
+      position: relative;
+      padding-right: 40px;
     }
     .card-id {
       font-size: 13px;
@@ -214,6 +213,39 @@
     .status-已退款 { background: #ECEFF1; color: #546E7A; }
     .status-未出荷 { background: #E8EAF6; color: #3F51B5; }
     .status-已散 { background: #FBE9E7; color: #BF360C; }
+    .new-badge {
+      position: absolute;
+      top: 8px; right: 8px;
+      background: #FF4444;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 8px;
+      z-index: 5;
+      box-shadow: 0 2px 6px rgba(255,68,68,0.3);
+    }
+    .card-add-btn {
+      position: absolute;
+      right: 8px; bottom: 8px;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      font-size: 18px; font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(255,111,157,0.4);
+      z-index: 5;
+      line-height: 1;
+    }
+    .card-add-btn.added {
+      background: linear-gradient(135deg, #a0a0a0, #888);
+      font-size: 14px;
+    }
     .pagination {
       display: flex; justify-content: center; align-items: center;
       gap: 8px; margin-top: 20px; margin-bottom: 40px;
@@ -379,6 +411,7 @@
       padding: 20px;
       border-radius: var(--radius);
       box-shadow: var(--shadow);
+      cursor: pointer;
     }
     .my-avatar {
       width: 64px; height: 64px;
@@ -500,14 +533,14 @@
   </style>
 </head>
 <body>
-  <!-- CN输入弹窗 -->
-  <div id="cnModal" class="modal-overlay">
+  <!-- CN设置弹窗（在我的页面使用） -->
+  <div id="cnEditModal" class="modal-overlay" style="display:none;" onclick="if(event.target.id==='cnEditModal')closeCNEdit()">
     <div class="modal">
       <div class="cn-input-wrap">
-        <h2>欢迎来到爱娜娜随便吃</h2>
-        <p>请输入你的 CN 昵称</p>
-        <input type="text" id="cnInput" placeholder="例如：大神万理" maxlength="20" autofocus>
-        <button class="btn-primary" onclick="saveCN()">进入</button>
+        <h2>设置昵称</h2>
+        <p>输入你的 CN 昵称，留空不显示</p>
+        <input type="text" id="cnEditInput" placeholder="例如：大神万理" maxlength="20" onkeypress="if(event.key==='Enter')saveCNEdit()">
+        <button class="btn-primary" onclick="saveCNEdit()">确定</button>
       </div>
     </div>
   </div>
@@ -530,7 +563,7 @@
   <div class="app" id="app" style="display:none;">
     <header class="header">
       <h1>爱娜娜随便吃</h1>
-      <div class="cn-badge" id="cnBadge"></div>
+      <div class="sync-info" id="syncInfo"></div>
     </header>
 
     <nav class="main-nav">
@@ -550,11 +583,11 @@
 
     <!-- 我的页面 -->
     <div class="page" id="myPage">
-      <div class="my-header">
+      <div class="my-header" id="myHeader" onclick="openCNEdit()">
         <div class="my-avatar" id="myAvatar"></div>
         <div class="my-cn-block">
           <div class="my-cn-name" id="myCnName"></div>
-          <div class="my-cn-desc">已添加 <span id="listCount">0</span> 件商品到List</div>
+          <div class="my-cn-desc" id="myCnDesc">已添加 <span id="listCount">0</span> 件商品到List</div>
         </div>
       </div>
       <div class="alert-section">
@@ -575,11 +608,34 @@
     // ============ 数据 ============
     let RAW_DATA = [];
     let ALL_STATUS = [];
-    let TAB_ORDER = [];
+    const TAB_CONFIG = [
+      { key: '全部', label: '全部', filter: null },
+      { key: '国现可排发', label: '国现可排发', filter: item => item.status === '国现可排发' || item.status === '现货可排发' },
+      { key: '即将到期', label: '即将到期', filter: (item, today) => {
+        const ddl = parseDate(item.storageDDL);
+        if (!ddl) return false;
+        const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+        return diff >= 0 && diff <= 30;
+      }},
+      { key: '待退补', label: '待退补', filter: item => item.status === '待退补' },
+      { key: '已超时', label: '已超时', filter: (item, today) => {
+        const ddl = parseDate(item.storageDDL);
+        if (!ddl) return false;
+        const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+        return diff < 0;
+      }},
+      { key: '运回中', label: '运回中', filter: item => item.status === '运回中' },
+      { key: '已退款', label: '已退款', filter: item => item.status === '已退款' }
+    ];
 
     function initData() {
       ALL_STATUS = [...new Set(RAW_DATA.map(d => d.status))].sort();
-      TAB_ORDER = ['全部', ...ALL_STATUS];
+      // 倒序排列，最新数据在前（原始数据按Excel行序，旧→新，reverse后新→旧）
+      RAW_DATA.reverse();
+      // 检查状态变化（New角标）
+      checkStatusChanges();
+      // 记录同步时间
+      saveSyncTime();
     }
 
     fetch('data.json')
@@ -597,14 +653,12 @@
     // ============ 旧数据路径兼容 ============
     function fixLegacyPath(item) {
       if (!item || !item.image || item.image === '/') return item;
-      // 旧格式：images/image43.jpg（无子目录）
       if (item.image.startsWith('images/image') && !item.image.includes('/full/') && !item.image.includes('/thumb/')) {
         const fname = item.image.split('/').pop();
         const stem = fname.replace(/\.[^.]+$/, '');
         item.image = 'images/full/' + fname;
         item.thumb = 'images/thumb/' + stem + '.jpg';
       }
-      // 有 image 但没有 thumb（旧数据）
       else if (!item.thumb && item.image && item.image !== '/') {
         const fname = item.image.split('/').pop();
         const stem = fname.replace(/\.[^.]+$/, '');
@@ -648,16 +702,15 @@
 
     // ============ 状态管理 ============
     let cn = localStorage.getItem('ainana_cn') || '';
-    let currentTab = '国现可排发';
+    let currentTab = '全部';
     let searchQuery = '';
     let currentPage = 1;
     const PAGE_SIZE = 18;
-
-    // 我的页面过滤状态：null=全部, 'guoxian', 'overdue', 'soon'
     let myListFilter = null;
+    let NEW_BADGES = new Set();
 
     function getList() {
-      try { 
+      try {
         let list = JSON.parse(localStorage.getItem('ainana_list_' + cn) || '[]');
         return list.map(fixLegacyPath);
       }
@@ -670,31 +723,64 @@
       return getList().some(x => x.id === id);
     }
 
+    function saveSyncTime() {
+      const now = new Date();
+      const text = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      localStorage.setItem('ainana_sync_time', text);
+    }
+    function renderSyncInfo() {
+      const t = localStorage.getItem('ainana_sync_time');
+      const el = document.getElementById('syncInfo');
+      if (el && t) el.textContent = '同步：' + t;
+    }
+
+    function checkStatusChanges() {
+      let snapshot = {};
+      let oldSnapshot = {};
+      try {
+        oldSnapshot = JSON.parse(localStorage.getItem('ainana_status_snapshot') || '{}');
+      } catch(e) {}
+      NEW_BADGES = new Set();
+      RAW_DATA.forEach(item => {
+        const oldStatus = oldSnapshot[item.id];
+        if (oldStatus !== undefined &&
+            oldStatus !== '国现可排发' && oldStatus !== '现货可排发' &&
+            (item.status === '国现可排发' || item.status === '现货可排发')) {
+          NEW_BADGES.add(item.id);
+        }
+        snapshot[item.id] = item.status;
+      });
+      localStorage.setItem('ainana_status_snapshot', JSON.stringify(snapshot));
+    }
+
     // ============ 初始化 ============
     function init() {
-      if (!cn) {
-        document.getElementById('cnModal').style.display = 'flex';
-      } else {
-        showApp();
-      }
-    }
-    function saveCN() {
-      const val = document.getElementById('cnInput').value.trim();
-      if (!val) return;
-      cn = val;
-      localStorage.setItem('ainana_cn', cn);
-      document.getElementById('cnModal').style.display = 'none';
       showApp();
     }
     function showApp() {
       document.getElementById('app').style.display = 'block';
-      document.getElementById('cnBadge').textContent = 'CN: ' + cn;
+      renderSyncInfo();
       renderTabs();
       renderCards();
     }
-    document.getElementById('cnInput').addEventListener('keypress', e => {
-      if (e.key === 'Enter') saveCN();
-    });
+
+    // ============ CN设置 ============
+    function openCNEdit() {
+      document.getElementById('cnEditInput').value = cn;
+      document.getElementById('cnEditModal').style.display = 'flex';
+    }
+    function saveCNEdit() {
+      const val = document.getElementById('cnEditInput').value.trim();
+      cn = val;
+      localStorage.setItem('ainana_cn', cn);
+      document.getElementById('cnEditModal').style.display = 'none';
+      if (document.getElementById('myPage').classList.contains('active')) {
+        renderMyPage();
+      }
+    }
+    function closeCNEdit() {
+      document.getElementById('cnEditModal').style.display = 'none';
+    }
 
     // ============ 导航 ============
     function switchPage(page) {
@@ -707,16 +793,22 @@
 
     // ============ Tab ============
     function renderTabs() {
-      const counts = {};
       const items = getFilteredItems();
-      ALL_STATUS.forEach(s => counts[s] = items.filter(x => x.status === s).length);
-      counts['全部'] = items.length;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const counts = {};
+      TAB_CONFIG.forEach(tab => {
+        if (tab.filter === null) {
+          counts[tab.key] = items.length;
+        } else {
+          counts[tab.key] = items.filter(item => tab.filter(item, today)).length;
+        }
+      });
 
       const container = document.getElementById('tabContainer');
-      container.innerHTML = TAB_ORDER.map(tab => {
-        const active = tab === currentTab ? 'active' : '';
-        const cnt = counts[tab] || 0;
-        return `<button class="tab-btn ${active}" onclick="setTab('${tab}')">${tab}<span class="count">${cnt}</span></button>`;
+      container.innerHTML = TAB_CONFIG.map(tab => {
+        const active = tab.key === currentTab ? 'active' : '';
+        const cnt = counts[tab.key] || 0;
+        return `<button class="tab-btn ${active}" onclick="setTab('${tab.key}')">${tab.label}<span class="count">${cnt}</span></button>`;
       }).join('');
     }
     function setTab(tab) {
@@ -742,10 +834,12 @@
     }
     function getDisplayItems() {
       let items = getFilteredItems();
-      if (currentTab !== '全部') {
-        items = items.filter(x => x.status === currentTab);
+      const tab = TAB_CONFIG.find(t => t.key === currentTab);
+      if (tab && tab.filter) {
+        const today = new Date(); today.setHours(0,0,0,0);
+        items = items.filter(item => tab.filter(item, today));
       }
-      return items;
+      return items; // RAW_DATA已在initData中reverse，所以这里是倒序
     }
 
     // ============ 首页卡片 ============
@@ -753,7 +847,6 @@
     const NO_IMG_FULL  = 'images/full/no-image.png';
 
     function buildCardImage(item) {
-      // 有实际图片：卡片显示缩略图，点击查看器时加载原图
       if (item.thumb && item.thumb !== '/') {
         const gradient = getGradient(item.id);
         const short = getShort(item.id);
@@ -763,7 +856,6 @@
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
           <div class="card-img-placeholder" style="background:${gradient};display:none" onclick="event.stopPropagation();openImageViewer('${item.image || item.thumb}')">${short}</div>`;
       }
-      // 无图片：显示默认图 + 文字叠加
       const overlayText = item.imgText || '暂无图片^ ^';
       return `
         <div class="card-img-wrap" onclick="event.stopPropagation();openImageViewer('${NO_IMG_FULL}')">
@@ -786,19 +878,41 @@
       } else {
         grid.innerHTML = pageItems.map(item => {
           const imgHtml = buildCardImage(item);
+          const isAdded = inList(item.id);
+          const newBadge = NEW_BADGES.has(item.id) ? '<span class="new-badge">New</span>' : '';
           return `
             <div class="card" onclick="openDetail('${item.id}')">
+              ${newBadge}
               ${imgHtml}
               <div class="card-info">
                 <div class="card-id">${item.id}</div>
                 <div class="card-channel">${item.channel || '/'}</div>
                 <span class="card-status status-${item.status}">${item.status}</span>
+                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${item.id}', this)">${isAdded ? '\u2713' : '+'}</button>
               </div>
             </div>
           `;
         }).join('');
       }
       renderPagination(totalPages);
+    }
+
+    function quickToggleList(id, btn) {
+      let list = getList();
+      const idx = list.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        btn.textContent = '+';
+        btn.classList.remove('added');
+      } else {
+        const item = RAW_DATA.find(x => x.id === id);
+        if (item) {
+          list.push({ ...item, addedAt: new Date().toISOString() });
+          btn.textContent = '\u2713';
+          btn.classList.add('added');
+        }
+      }
+      saveList(list);
     }
 
     // ============ 分页（支持跳转） ============
@@ -814,7 +928,6 @@
         }
       }
       html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
-      // 跳转输入框
       html += `
         <div class="page-jump-wrap">
           <input type="number" id="pageJumpInput" min="1" max="${totalPages}" value="${currentPage}" onkeypress="if(event.key==='Enter')jumpPage()">
@@ -902,7 +1015,6 @@
       document.getElementById('viewerImg').src = src;
       const link = document.getElementById('viewerDownload');
       link.href = src;
-      // 提取文件名用于下载
       const name = src.split('/').pop() || 'image';
       link.download = name;
       viewer.classList.add('active');
@@ -986,10 +1098,20 @@
         listTitle = '一个月内过期';
       }
 
-      // 头像 + 名字
-      document.getElementById('myAvatar').textContent = getShort(cn);
-      document.getElementById('myAvatar').style.background = getGradient(cn);
-      document.getElementById('myCnName').textContent = cn;
+      // 头像 + 名字（未设置时显示提示）
+      if (cn) {
+        document.getElementById('myAvatar').textContent = getShort(cn);
+        document.getElementById('myAvatar').style.background = getGradient(cn);
+        document.getElementById('myCnName').textContent = cn;
+        document.getElementById('myCnName').style.color = '';
+        document.getElementById('myCnDesc').textContent = `已添加 ${rawList.length} 件商品到List`;
+      } else {
+        document.getElementById('myAvatar').textContent = '?';
+        document.getElementById('myAvatar').style.background = '#ccc';
+        document.getElementById('myCnName').textContent = '请设置昵称';
+        document.getElementById('myCnName').style.color = '#aaa';
+        document.getElementById('myCnDesc').textContent = '点击上方区域设置你的CN';
+      }
       document.getElementById('listCount').textContent = rawList.length;
 
       // 预警卡片（带点击）
