@@ -667,7 +667,7 @@
       </div>
       <div class="list-section">
         <h2 id="myListTitle">
-          我的List
+          <span id="myListTitleText">我的List</span>
           <span class="back-btn" id="alertBackBtn" onclick="showAllList()">显示全部</span>
         </h2>
         <div id="myListContainer"></div>
@@ -1302,10 +1302,9 @@
           </div>
         `;
 
-        // 标题与返回按钮（安全设置：找文本节点而不是 firstChild）
-        const titleEl = document.getElementById('myListTitle');
-        const textNode = [...titleEl.childNodes].find(n => n.nodeType === 3);
-        if (textNode) textNode.textContent = listTitle + ' ';
+        // 标题与返回按钮
+        const titleTextEl = document.getElementById('myListTitleText');
+        if (titleTextEl) titleTextEl.textContent = listTitle;
         document.getElementById('alertBackBtn').style.display = myListFilter ? 'inline' : 'none';
 
         // List卡片
