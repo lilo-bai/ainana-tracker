@@ -1046,7 +1046,7 @@
                 <div class="card-id">${item.id || '?'}</div>
                 <div class="card-channel">${item.channel || '/'}</div>
                 <span class="card-status status-${safeStatus}">${item.status || '/'}</span>
-                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${safeId}', this)">${isAdded ? '移除List' : '+'}</button>
+                <button class="card-add-btn ${isAdded ? 'added' : ''}" onclick="event.stopPropagation();quickToggleList('${safeId}', this)">${isAdded ? '\u2713' : '+'}</button>
               </div>
             </div>
           `;
@@ -1066,7 +1066,7 @@
         const item = RAW_DATA.find(x => x.id === id);
         if (item) {
           list.push({ ...item, addedAt: new Date().toISOString() });
-          btn.textContent = '移除List';
+          btn.textContent = '\u2713';
           btn.classList.add('added');
         }
       }
