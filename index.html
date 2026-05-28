@@ -530,6 +530,55 @@
       .header h1 { font-size: 22px; }
       .alert-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     }
+    /* 顶部过期提醒横幅 */
+    .alert-banner {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(135deg, #C62828, #E53935);
+      color: #fff;
+      padding: 14px 40px 14px 20px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 14px;
+      z-index: 9999;
+      cursor: pointer;
+      animation: bannerSlide 0.4s ease;
+      display: none;
+    }
+    .alert-banner.show { display: block; }
+    @keyframes bannerSlide {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
+    .alert-banner-close {
+      position: absolute;
+      right: 14px; top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.8);
+      font-size: 18px;
+      cursor: pointer;
+      background: none; border: none;
+      padding: 0; line-height: 1;
+    }
+    .alert-banner-close:hover { color: #fff; }
+    /* 过时数据卡片 */
+    .card.stale {
+      opacity: 0.65;
+      position: relative;
+    }
+    .card.stale::after {
+      content: '⚠️ 已从表移除';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      z-index: 2;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -557,6 +606,12 @@
       <button class="btn btn-close" onclick="closeImageViewer()">关闭</button>
       <a id="viewerDownload" class="btn btn-download" href="" download="" target="_blank">保存图片</a>
     </div>
+  </div>
+
+  <!-- 顶部过期提醒横幅 -->
+  <div id="alertBanner" class="alert-banner" onclick="goToOverdueTab()">
+    <span id="alertBannerText"></span>
+    <button class="alert-banner-close" onclick="event.stopPropagation();dismissAlertBanner()">&#10005;</button>
   </div>
 
   <!-- 主应用 -->
@@ -723,6 +778,53 @@
       return getList().some(x => x.id === id);
     }
 
+    // List 自动同步：用ID去 RAW_DATA 匹配最新数据
+    function syncListItems() {
+      const list = getList();
+      return list.map(saved => {
+        const fresh = RAW_DATA.find(x => x.id === saved.id);
+        if (fresh) {
+          // 保留 addedAt，用最新数据覆盖
+          return { ...fresh, addedAt: saved.addedAt };
+        } else {
+          // 已从表中移除，保留旧快照但标记 stale
+          return { ...saved, _stale: true };
+        }
+      });
+    }
+
+    // ============ 顶部过期提醒横幅 ============
+    function checkStorageAlerts() {
+      if (sessionStorage.getItem('ainana_alert_dismissed') === '1') return;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const alerts = RAW_DATA.filter(item => {
+        // 已终止状态不需要囤货提醒
+        if (['已退款', '已排发', '国现可排发', '现货可排发'].includes(item.status)) return false;
+        const ddl = parseDate(item.storageDDL);
+        if (!ddl) return false;
+        return ddl < today;
+      });
+      if (alerts.length > 0) {
+        const text = alerts.length === 1
+          ? `⚠️ 有 1 件谷子囤货已超时，点击查看`
+          : `⚠️ 有 ${alerts.length} 件谷子囤货已超时，点击查看`;
+        document.getElementById('alertBannerText').textContent = text;
+        document.getElementById('alertBanner').classList.add('show');
+      }
+    }
+    function dismissAlertBanner() {
+      document.getElementById('alertBanner').classList.remove('show');
+      sessionStorage.setItem('ainana_alert_dismissed', '1');
+    }
+    function goToOverdueTab() {
+      dismissAlertBanner();
+      currentTab = '已超时';
+      currentPage = 1;
+      switchPage('home');
+      renderTabs();
+      renderCards();
+    }
+
     function saveSyncTime() {
       const now = new Date();
       const text = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -762,6 +864,7 @@
       renderSyncInfo();
       renderTabs();
       renderCards();
+      checkStorageAlerts();
     }
 
     // ============ CN设置 ============
@@ -970,9 +1073,15 @@
         </div>`;
     }
     function openDetail(id) {
-      const item = RAW_DATA.find(x => x.id === id);
-      if (!item) return;
+      let item = RAW_DATA.find(x => x.id === id);
       const isAdded = inList(id);
+      // stale 项从本地快照取
+      if (!item) {
+        const list = getList();
+        item = list.find(x => x.id === id);
+        if (!item) return;
+      }
+      const isStale = !RAW_DATA.some(x => x.id === id);
       const ddlDate = parseDate(item.storageDDL);
       const today = new Date(); today.setHours(0,0,0,0);
       let ddlClass = '', ddlText = item.storageDDL;
@@ -984,10 +1093,11 @@
       }
       document.getElementById('detailModalContent').innerHTML = `
         <div class="modal-header">
-          <div class="modal-title">商品详情</div>
+          <div class="modal-title">商品详情${isStale ? ' <span style="color:#C62828;font-size:13px;">⚠️ 已过时</span>' : ''}</div>
           <button class="modal-close" onclick="closeDetail()">&times;</button>
         </div>
         <div class="modal-body">
+          ${isStale ? '<div style="background:#FFF3E0;color:#E65100;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;font-weight:600;">⚠️ 该商品已从最新数据中移除，以下为历史快照</div>' : ''}
           ${buildDetailImage(item)}
           <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${item.id}</span></div>
           <div class="detail-row"><span class="detail-label">渠道</span><span class="detail-value">${normalize(item.channel)}</span></div>
@@ -1060,10 +1170,11 @@
 
     // ============ 我的页面 ============
     function renderMyPage() {
-      const rawList = getList();
+      const rawList = syncListItems();
       const today = new Date(); today.setHours(0,0,0,0);
+      const staleCount = rawList.filter(x => x._stale).length;
 
-      // 统计
+      // 统计（基于最新数据，stale项也算）
       let guoxian = 0, overdue = 0, soon = 0;
       rawList.forEach(item => {
         if (item.status === '国现可排发' || item.status === '现货可排发') guoxian++;
@@ -1099,12 +1210,13 @@
       }
 
       // 头像 + 名字（未设置时显示提示）
+      const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
       if (cn) {
         document.getElementById('myAvatar').textContent = getShort(cn);
         document.getElementById('myAvatar').style.background = getGradient(cn);
         document.getElementById('myCnName').textContent = cn;
         document.getElementById('myCnName').style.color = '';
-        document.getElementById('myCnDesc').textContent = `已添加 ${rawList.length} 件商品到List`;
+        document.getElementById('myCnDesc').textContent = `已添加 ${rawList.length} 件商品到List${staleTip}`;
       } else {
         document.getElementById('myAvatar').textContent = '?';
         document.getElementById('myAvatar').style.background = '#ccc';
@@ -1146,13 +1258,15 @@
       } else {
         container.innerHTML = `<div class="card-grid">` + filteredList.map(item => {
           const imgHtml = buildCardImage(item);
+          const staleClass = item._stale ? ' stale' : '';
+          const statusText = item._stale ? item.status : item.status;
           return `
-            <div class="card" onclick="openDetail('${item.id}')">
+            <div class="card${staleClass}" onclick="openDetail('${item.id}')">
               ${imgHtml}
               <div class="card-info">
                 <div class="card-id">${item.id}</div>
                 <div class="card-channel">${item.channel || '/'}</div>
-                <span class="card-status status-${item.status}">${item.status}</span>
+                <span class="card-status status-${statusText}">${statusText}</span>
               </div>
             </div>
           `;
