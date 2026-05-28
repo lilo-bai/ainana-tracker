@@ -1225,121 +1225,123 @@
 
     // ============ 我的页面 ============
     function renderMyPage() {
-      try {
-        const rawList = syncListItems();
-        // 倒序排列：最新添加的在前
-        const sortedList = [...rawList].reverse();
-        const today = new Date(); today.setHours(0,0,0,0);
-        const staleCount = sortedList.filter(x => x._stale).length;
+      const rawList = syncListItems();
+      // 倒序排列：最新添加的在前
+      const sortedList = [...rawList].reverse();
+      const today = new Date(); today.setHours(0,0,0,0);
+      const staleCount = sortedList.filter(x => x._stale).length;
 
-        // 统计（基于最新数据，stale项也算）
-        let guoxian = 0, overdue = 0, soon = 0;
-        sortedList.forEach(item => {
-          const status = item.status || '/';
-          if (status === '国现可排发' || status === '现货可排发') guoxian++;
-          const ddl = parseDate(item.storageDDL);
-          if (ddl) {
-            const diff = Math.ceil((ddl - today) / (1000*60*60*24));
-            if (diff < 0) overdue++;
-            else if (diff <= 30) soon++;
-          }
+      // 统计（基于最新数据，stale项也算）
+      let guoxian = 0, overdue = 0, soon = 0;
+      sortedList.forEach(item => {
+        const status = item.status || '/';
+        if (status === '国现可排发' || status === '现货可排发') guoxian++;
+        const ddl = parseDate(item.storageDDL);
+        if (ddl) {
+          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+          if (diff < 0) overdue++;
+          else if (diff <= 30) soon++;
+        }
+      });
+
+      // 应用过滤
+      let filteredList = sortedList;
+      let listTitle = '我的List';
+      if (myListFilter === 'guoxian') {
+        filteredList = sortedList.filter(x =>
+          x.status === '国现可排发' || x.status === '现货可排发');
+        listTitle = '国现可排发';
+      } else if (myListFilter === 'overdue') {
+        filteredList = sortedList.filter(x => {
+          const ddl = parseDate(x.storageDDL);
+          if (!ddl) return false;
+          return ddl < today;
         });
+        listTitle = '囤货已超时';
+      } else if (myListFilter === 'soon') {
+        filteredList = sortedList.filter(x => {
+          const ddl = parseDate(x.storageDDL);
+          if (!ddl) return false;
+          const diff = Math.ceil((ddl - today) / (1000*60*60*24));
+          return diff >= 0 && diff <= 30;
+        });
+        listTitle = '一个月内过期';
+      }
 
-        // 应用过滤
-        let filteredList = sortedList;
-        let listTitle = '我的List';
-        if (myListFilter === 'guoxian') {
-          filteredList = sortedList.filter(x =>
-            x.status === '国现可排发' || x.status === '现货可排发');
-          listTitle = '国现可排发';
-        } else if (myListFilter === 'overdue') {
-          filteredList = sortedList.filter(x => {
-            const ddl = parseDate(x.storageDDL);
-            if (!ddl) return false;
-            return ddl < today;
-          });
-          listTitle = '囤货已超时';
-        } else if (myListFilter === 'soon') {
-          filteredList = sortedList.filter(x => {
-            const ddl = parseDate(x.storageDDL);
-            if (!ddl) return false;
-            const diff = Math.ceil((ddl - today) / (1000*60*60*24));
-            return diff >= 0 && diff <= 30;
-          });
-          listTitle = '一个月内过期';
+      // 头像 + 名字（用 innerHTML 保留 listCount span，不能用 textContent 否则子节点会被清）
+      const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
+      const myCnDesc = document.getElementById('myCnDesc');
+      if (cn) {
+        document.getElementById('myAvatar').textContent = getShort(cn);
+        document.getElementById('myAvatar').style.background = getGradient(cn);
+        document.getElementById('myCnName').textContent = cn;
+        document.getElementById('myCnName').style.color = '';
+        if (myCnDesc) myCnDesc.innerHTML = `已添加 <span id="listCount">${sortedList.length}</span> 件商品到List${staleTip}`;
+      } else {
+        document.getElementById('myAvatar').textContent = '?';
+        document.getElementById('myAvatar').style.background = '#ccc';
+        document.getElementById('myCnName').textContent = '请设置昵称';
+        document.getElementById('myCnName').style.color = '#aaa';
+        if (myCnDesc) myCnDesc.innerHTML = `点击上方区域设置你的CN`;
+      }
+
+      // 预警卡片
+      document.getElementById('alertStats').innerHTML = `
+        <div class="alert-card green" onclick="filterMyList('guoxian')">
+          <div class="alert-card-num">${guoxian}</div>
+          <div class="alert-card-label">国现可排发</div>
+        </div>
+        <div class="alert-card red" onclick="filterMyList('overdue')">
+          <div class="alert-card-num">${overdue}</div>
+          <div class="alert-card-label">囤货已超时</div>
+        </div>
+        <div class="alert-card orange" onclick="filterMyList('soon')">
+          <div class="alert-card-num">${soon}</div>
+          <div class="alert-card-label">一个月内过期</div>
+        </div>
+      `;
+
+      // 标题与返回按钮（兼容旧版DOM：没有myListTitleText时用innerHTML兜底）
+      const titleTextEl = document.getElementById('myListTitleText');
+      if (titleTextEl) {
+        titleTextEl.textContent = listTitle;
+      } else {
+        const titleEl = document.getElementById('myListTitle');
+        if (titleEl) {
+          titleEl.innerHTML = listTitle + '\n          <span class="back-btn" id="alertBackBtn" onclick="showAllList()">显示全部</span>';
         }
+      }
+      const backBtn = document.getElementById('alertBackBtn');
+      if (backBtn) backBtn.style.display = myListFilter ? 'inline' : 'none';
 
-        // 头像 + 名字
-        const staleTip = staleCount > 0 ? `（${staleCount}条已过时）` : '';
-        if (cn) {
-          document.getElementById('myAvatar').textContent = getShort(cn);
-          document.getElementById('myAvatar').style.background = getGradient(cn);
-          document.getElementById('myCnName').textContent = cn;
-          document.getElementById('myCnName').style.color = '';
-          document.getElementById('myCnDesc').textContent = `已添加 ${sortedList.length} 件商品到List${staleTip}`;
-        } else {
-          document.getElementById('myAvatar').textContent = '?';
-          document.getElementById('myAvatar').style.background = '#ccc';
-          document.getElementById('myCnName').textContent = '请设置昵称';
-          document.getElementById('myCnName').style.color = '#aaa';
-          document.getElementById('myCnDesc').textContent = '点击上方区域设置你的CN';
-        }
-        document.getElementById('listCount').textContent = sortedList.length;
-
-        // 预警卡片
-        document.getElementById('alertStats').innerHTML = `
-          <div class="alert-card green" onclick="filterMyList('guoxian')">
-            <div class="alert-card-num">${guoxian}</div>
-            <div class="alert-card-label">国现可排发</div>
-          </div>
-          <div class="alert-card red" onclick="filterMyList('overdue')">
-            <div class="alert-card-num">${overdue}</div>
-            <div class="alert-card-label">囤货已超时</div>
-          </div>
-          <div class="alert-card orange" onclick="filterMyList('soon')">
-            <div class="alert-card-num">${soon}</div>
-            <div class="alert-card-label">一个月内过期</div>
+      // List卡片
+      const container = document.getElementById('myListContainer');
+      if (filteredList.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">&#128230;</div>
+            <div class="empty-state-text">${myListFilter ? '没有满足该条件的商品' : '还没有添加任何商品，去首页看看吧~'}</div>
           </div>
         `;
-
-        // 标题与返回按钮
-        const titleTextEl = document.getElementById('myListTitleText');
-        if (titleTextEl) titleTextEl.textContent = listTitle;
-        document.getElementById('alertBackBtn').style.display = myListFilter ? 'inline' : 'none';
-
-        // List卡片
-        const container = document.getElementById('myListContainer');
-        if (filteredList.length === 0) {
-          container.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-state-icon">&#128230;</div>
-              <div class="empty-state-text">${myListFilter ? '没有满足该条件的商品' : '还没有添加任何商品，去首页看看吧~'}</div>
+      } else {
+        container.innerHTML = '<div class="card-grid">' + filteredList.map(item => {
+          const imgHtml = buildCardImage(item);
+          const daysBanner = getDaysBanner(item);
+          const staleClass = item._stale ? ' stale' : '';
+          const statusText = (item.status || '/').replace(/\s/g, '_');
+          const safeId = (item.id || '').replace(/'/g, "\\'");
+          return `
+            <div class="card${staleClass}" onclick="openDetail('${safeId}')">
+              ${daysBanner}
+              ${imgHtml}
+              <div class="card-info">
+                <div class="card-id">${item.id || '?'}</div>
+                <div class="card-channel">${item.channel || '/'}</div>
+                <span class="card-status status-${statusText}">${item.status || '/'}</span>
+              </div>
             </div>
           `;
-        } else {
-          container.innerHTML = '<div class="card-grid">' + filteredList.map(item => {
-            const imgHtml = buildCardImage(item);
-            const daysBanner = getDaysBanner(item);
-            const staleClass = item._stale ? ' stale' : '';
-            const statusText = (item.status || '/').replace(/\s/g, '_');
-            const safeId = (item.id || '').replace(/'/g, "\\'");
-            return `
-              <div class="card${staleClass}" onclick="openDetail('${safeId}')">
-                ${daysBanner}
-                ${imgHtml}
-                <div class="card-info">
-                  <div class="card-id">${item.id || '?'}</div>
-                  <div class="card-channel">${item.channel || '/'}</div>
-                  <span class="card-status status-${statusText}">${item.status || '/'}</span>
-                </div>
-              </div>
-            `;
-          }).join('') + '</div>';
-        }
-      } catch (err) {
-        console.error('renderMyPage error:', err);
-        document.getElementById('myListContainer').innerHTML =
-          '<div style="padding:40px;text-align:center;color:#C62828;font-weight:600;">渲染出错: ' + (err.message || err) + '</div>';
+        }).join('') + '</div>';
       }
     }
 
