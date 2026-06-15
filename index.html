@@ -1204,7 +1204,7 @@
       }
     });
 
-    // 卡片顶部天数横幅
+    // 卡片顶部天数横幅：仅DDL存在且<=30天（或已超时）时显示，所有sheet统一
     function getDaysBanner(item) {
       const ddl = parseDate(item.storageDDL);
       if (!ddl) {
@@ -1217,12 +1217,11 @@
       const diff = Math.ceil((ddl - today) / (1000*60*60*24));
       if (diff < 0) {
         return `<div class="card-days-banner banner-overdue">已超时${Math.abs(diff)}天</div>`;
-      } else if (diff <= 7) {
-        return `<div class="card-days-banner banner-overdue">剩${diff}天</div>`;
       } else if (diff <= 30) {
-        return `<div class="card-days-banner banner-soon">剩${diff}天</div>`;
+        return `<div class="card-days-banner ${diff <= 7 ? 'banner-overdue' : 'banner-soon'}">剩${diff}天</div>`;
       } else {
-        return `<div class="card-days-banner banner-safe">剩${diff}天</div>`;
+        // 超过30天不显示横幅
+        return '';
       }
     }
 
